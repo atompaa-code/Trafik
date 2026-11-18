@@ -82,21 +82,7 @@
       flex: 1;
     }
 
-    #warnings-container {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .warning-card {
-      background: #3f2e12;
-      border: 1px solid #d97706;
-      color: #fcd34d;
-      padding: 12px;
-      border-radius: 8px;
-      font-size: 0.85rem;
-      line-height: 1.4;
-    }
-
+    /* Standard-kortstil */
     .card-box {
       background: #1c1c1e;
       border: 2px solid #3b82f6;
@@ -108,10 +94,43 @@
     }
     .card-box:active { background: #252528; }
 
+    /* Varnings-kortstil (skiftar färg om det finns störningar) */
+    .card-box.warning-active {
+      background: #2b1f0c;
+      border-color: #d97706;
+    }
+
     .best-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; margin-bottom: 4px; }
     .best-name { font-size: 1.4rem; font-weight: 700; color: #fff; margin-bottom: 8px; }
     .best-time { font-size: 2.5rem; font-weight: 800; color: #4ade80; }
     .best-hint { font-size: 0.75rem; color: #60a5fa; margin-top: 8px; }
+
+    .warning-box-title { font-size: 1.1rem; font-weight: 700; color: #4ade80; margin-bottom: 4px; }
+    .card-box.warning-active .warning-box-title { color: #fcd34d; }
+    .warning-box-hint { font-size: 0.75rem; color: #60a5fa; margin-top: 4px; }
+
+    /* Fällbar varningssektion */
+    .warnings-section {
+      background: #181818;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 12px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: -8px;
+    }
+    .warnings-section.visible { display: flex; }
+
+    .warning-card {
+      background: #3f2e12;
+      border: 1px solid #d97706;
+      color: #fcd34d;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
 
     .camera-box-title { font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
     .camera-box-hint { font-size: 0.75rem; color: #60a5fa; margin-top: 4px; }
@@ -201,7 +220,15 @@
   </header>
 
   <div class="container">
-    <div id="warnings-container"></div>
+    <!-- Varningsbadge (visas som klickbart kort överst) -->
+    <div id="warning-card-box" class="card-box" onclick="toggleWarnings()" style="display:none;">
+      <div class="best-label">Trafikstatus</div>
+      <div id="warning-box-title" class="warning-box-title">Inga hinder</div>
+      <div class="warning-box-hint" id="warning-hint">Tryck för att visa detaljer ↓</div>
+    </div>
+
+    <!-- Fällbar varningssektion -->
+    <div id="warnings-container" class="warnings-section"></div>
 
     <!-- Huvudkort: Snabbaste rutten -->
     <div class="card-box" onclick="toggleDetails()">
@@ -293,6 +320,13 @@
       hint.textContent = camerasSec.classList.contains('visible') ? 'Tryck för att dölja ▴' : 'Tryck för att visa Partille & Torpamotet ↓';
     }
 
+    function toggleWarnings() {
+      const warningsSec = document.getElementById('warnings-container');
+      const hint = document.getElementById('warning-hint');
+      warningsSec.classList.toggle('visible');
+      hint.textContent = warningsSec.classList.contains('visible') ? 'Tryck för att dölja ▴' : 'Tryck för att visa detaljer ↓';
+    }
+
     async function updateWeather() {
       const weatherBadge = document.getElementById('weather-badge');
       try {
@@ -305,11 +339,11 @@
 
           let icon = "🌤️";
           if (code >= 71 && code <= 77) {
-            icon = "❄️"; // Snö
+            icon = "❄️";
           } else if (precip > 0 || (code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
-            icon = "🌧️"; // Regn
+            icon = "🌧️";
           } else if (code >= 1 && code <= 3) {
-            icon = "☁️"; // Molnigt
+            icon = "☁️";
           }
 
           weatherBadge.textContent = `${icon} ${temp}°C`;
@@ -380,7 +414,9 @@
     }
 
     async function loadTrafficAndCameras() {
+      const warningCardBox = document.getElementById('warning-card-box');
       const warningsEl = document.getElementById('warnings-container');
+      const warningBoxTitle = document.getElementById('warning-box-title');
       const camerasEl = document.getElementById('cameras-container');
 
       if (!TRAFIKVERKET_API_KEY) {
@@ -432,16 +468,29 @@
         const allCameras = result2.RESPONSE.RESULT[0]?.Camera || [];
 
         let warningsHtml = "";
+        let deviationCount = 0;
 
         situations.forEach(sit => {
           const msgs = sit.Deviation || [];
           msgs.forEach(dev => {
+            deviationCount++;
             const header = dev.Header || "Trafikmeddelande";
             const desc = dev.Message || "";
             warningsHtml += `<div class="warning-card"><strong>⚠️ ${header}</strong><br>${desc}</div>`;
           });
         });
-        warningsEl.innerHTML = warningsHtml;
+
+        if (deviationCount > 0) {
+          warningCardBox.style.display = "block";
+          warningCardBox.classList.add("warning-active");
+          warningBoxTitle.textContent = `⚠️ ${deviationCount} ${deviationCount === 1 ? 'händelse' : 'händelser'} på sträckan`;
+          warningsEl.innerHTML = warningsHtml;
+        } else {
+          warningCardBox.style.display = "block";
+          warningCardBox.classList.remove("warning-active");
+          warningBoxTitle.textContent = "✅ Inga rapporterade hinder";
+          warningsEl.innerHTML = `<div style="color:#888; font-size:0.85rem; text-align:center; padding: 6px;">Inga aktiva störningar längs rutten just nu.</div>`;
+        }
 
         const targetCameras = allCameras.filter(cam => {
           const name = (cam.Name || "").toLowerCase();
