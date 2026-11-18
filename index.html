@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Morgonkollen: Hem → Jobb</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #121212;
+      color: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    header {
+      background: #1e1e1e;
+      padding: 14px 16px;
+      border-bottom: 1px solid #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+      max-width: 600px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .header-left {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    header h1 { font-size: 1.1rem; font-weight: 600; }
+    .route-badge {
+      font-size: 0.75rem;
+      background: #2c2c2c;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #bbb;
+      display: inline-block;
+      width: fit-content;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .weather-badge {
+      font-size: 0.8rem;
+      background: #172554;
+      border: 1px solid #3b82f6;
+      color: #bfdbfe;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-weight: 600;
+      display: none;
+      align-items: center;
+      gap: 4px;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 0.8rem;
+    }
+    button:hover { background: #1d4ed8; }
+
+    .container {
+      max-width: 600px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      flex: 1;
+    }
+
+    #warnings-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .warning-card {
+      background: #3f2e12;
+      border: 1px solid #d97706;
+      color: #fcd34d;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+
+    .card-box {
+      background: #1c1c1e;
+      border: 2px solid #3b82f6;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .card-box:active { background: #252528; }
+
+    .best-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; margin-bottom: 4px; }
+    .best-name { font-size: 1.4rem; font-weight: 700; color: #fff; margin-bottom: 8px; }
+    .best-time { font-size: 2.5rem; font-weight: 800; color: #4ade80; }
+    .best-hint { font-size: 0.75rem; color: #60a5fa; margin-top: 8px; }
+
+    .camera-box-title { font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .camera-box-hint { font-size: 0.75rem; color: #60a5fa; margin-top: 4px; }
+
+    .cameras-section {
+      background: #181818;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 12px;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: -8px;
+    }
+    .cameras-section.visible { display: flex; }
+
+    .camera-card {
+      background: #222;
+      border-radius: 6px;
+      padding: 8px;
+      text-align: center;
+    }
+    .camera-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; color: #60a5fa; }
+    .camera-img {
+      width: 100%;
+      height: auto;
+      border-radius: 4px;
+      background: #111;
+      display: block;
+    }
+
+    #details-section {
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+      margin-top: 4px;
+    }
+    #details-section.visible { display: flex; }
+
+    #map {
+      width: 100%;
+      height: 300px;
+      border-radius: 8px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+    }
+    .dark-tiles {
+      filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(90%);
+    }
+
+    .routes-info-box {
+      background: #181818;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .route-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      background: #222;
+      border-radius: 6px;
+      border-left: 4px solid #555;
+      font-size: 0.85rem;
+    }
+    .route-row.e20 { border-left-color: #3b82f6; }
+    .route-row.savedalen { border-left-color: #f59e0b; }
+    .route-row.utby { border-left-color: #10b981; }
+    .route-name { font-weight: 600; color: #fff; }
+    .route-time { font-size: 1rem; font-weight: bold; color: #4ade80; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <h1>Morgonkollen</h1>
+      <span class="route-badge">Hem → Jobb</span>
+    </div>
+    <div class="header-right">
+      <div id="weather-badge" class="weather-badge">--°C</div>
+      <button onclick="updateAllData()">Uppdatera</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div id="warnings-container"></div>
+
+    <!-- Huvudkort: Snabbaste rutten -->
+    <div class="card-box" onclick="toggleDetails()">
+      <div class="best-label">Snabbaste vägen just nu</div>
+      <div id="best-route-name" class="best-name">Beräknar...</div>
+      <div id="best-route-time" class="best-time">-- min</div>
+      <div class="best-hint">Tryck för att visa karta & alla rutter ↓</div>
+    </div>
+
+    <!-- Detaljdel: Karta och alla rutter -->
+    <div id="details-section">
+      <div id="map"></div>
+
+      <div>
+        <h2 style="font-size:0.85rem; color:#9ca3af; margin-bottom:8px; text-transform:uppercase;">Alla rutter</h2>
+        <div id="routes-summary" class="routes-info-box">
+          <p style="color:#777; font-size:0.85rem;">Hämtar restider...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Kamerabadge -->
+    <div class="card-box" onclick="toggleCameras()">
+      <div class="best-label">Trafikbilder</div>
+      <div class="camera-box-title">📷 Vägkameror</div>
+      <div class="camera-box-hint" id="camera-hint">Tryck för att visa Partille & Torpamotet ↓</div>
+    </div>
+
+    <!-- Kamerasektion som fälls ut -->
+    <div id="cameras-container" class="cameras-section">
+      <p style="color:#777; font-size:0.85rem;">Hämtar kamerabilder...</p>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const TRAFIKVERKET_API_KEY = "6abeeceef43f457698f0983769a17cf2";
+
+    const START_COORDS = [57.72694756913561, 12.119290506163981];
+    const END_COORDS   = [57.72612255912035, 12.021023594708442];
+
+    let map = null;
+    let mapInitialized = false;
+    let routeLayer = null;
+    let currentFastestGeometry = null;
+
+    function initMap() {
+      if (mapInitialized) return;
+      map = L.map('map').setView([57.730, 12.070], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 19,
+        className: 'dark-tiles'
+      }).addTo(map);
+
+      L.marker(START_COORDS).addTo(map).bindPopup("<b>Start:</b> Partille");
+      L.marker(END_COORDS).addTo(map).bindPopup("<b>Mål:</b> SKF, Gamlestaden");
+      mapInitialized = true;
+      drawFastestRoute();
+    }
+
+    function drawFastestRoute() {
+      if (!map || !currentFastestGeometry) return;
+      if (routeLayer) {
+        map.removeLayer(routeLayer);
+      }
+      routeLayer = L.geoJSON(currentFastestGeometry, {
+        style: { color: '#4ade80', weight: 5, opacity: 0.85 }
+      }).addTo(map);
+      map.fitBounds(routeLayer.getBounds(), { padding: [25, 25] });
+    }
+
+    function toggleDetails() {
+      const details = document.getElementById('details-section');
+      details.classList.toggle('visible');
+      if (details.classList.contains('visible')) {
+        initMap();
+        setTimeout(() => {
+          map.invalidateSize();
+          drawFastestRoute();
+        }, 200);
+      }
+    }
+
+    function toggleCameras() {
+      const camerasSec = document.getElementById('cameras-container');
+      const hint = document.getElementById('camera-hint');
+      camerasSec.classList.toggle('visible');
+      hint.textContent = camerasSec.classList.contains('visible') ? 'Tryck för att dölja ▴' : 'Tryck för att visa Partille & Torpamotet ↓';
+    }
+
+    async function updateWeather() {
+      const weatherBadge = document.getElementById('weather-badge');
+      try {
+        const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=57.73&longitude=12.11&current=temperature_2m,precipitation,weathercode");
+        const data = await res.json();
+        if (data.current) {
+          const temp = Math.round(data.current.temperature_2m);
+          const precip = data.current.precipitation;
+          const code = data.current.weathercode;
+
+          let icon = "🌤️";
+          if (code >= 71 && code <= 77) {
+            icon = "❄️"; // Snö
+          } else if (precip > 0 || (code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
+            icon = "🌧️"; // Regn
+          } else if (code >= 1 && code <= 3) {
+            icon = "☁️"; // Molnigt
+          }
+
+          weatherBadge.textContent = `${icon} ${temp}°C`;
+          weatherBadge.style.display = "flex";
+        }
+      } catch (err) {
+        console.error("Kunde inte hämta väder:", err);
+      }
+    }
+
+    async function updateRoutes() {
+      const bestNameEl = document.getElementById('best-route-name');
+      const bestTimeEl = document.getElementById('best-route-time');
+      const summaryEl = document.getElementById('routes-summary');
+
+      try {
+        const resE20 = await fetch(`https://router.project-osrm.org/route/v1/driving/${START_COORDS[1]},${START_COORDS[0]};${END_COORDS[1]},${END_COORDS[0]}?overview=full&geometries=geojson`);
+        const dataE20 = await resE20.json();
+
+        const resSavedalen = await fetch(`https://router.project-osrm.org/route/v1/driving/${START_COORDS[1]},${START_COORDS[0]};12.0700,57.7375;${END_COORDS[1]},${END_COORDS[0]}?overview=full&geometries=geojson`);
+        const dataSavedalen = await resSavedalen.json();
+
+        const resUtby = await fetch(`https://router.project-osrm.org/route/v1/driving/${START_COORDS[1]},${START_COORDS[0]};12.0500,57.7425;${END_COORDS[1]},${END_COORDS[0]}?overview=full&geometries=geojson`);
+        const dataUtby = await resUtby.json();
+
+        if (dataE20.routes && dataSavedalen.routes && dataUtby.routes) {
+          const tE20 = Math.round(dataE20.routes[0].duration / 60);
+          const dE20 = (dataE20.routes[0].distance / 1000).toFixed(1);
+
+          const tSavedalen = Math.round(dataSavedalen.routes[0].duration / 60);
+          const dSavedalen = (dataSavedalen.routes[0].distance / 1000).toFixed(1);
+
+          const tUtby = Math.round(dataUtby.routes[0].duration / 60);
+          const dUtby = (dataUtby.routes[0].distance / 1000).toFixed(1);
+
+          let routes = [
+            { name: "E20 (Huvudled)", time: tE20, dist: dE20, css: "e20", geom: dataE20.routes[0].geometry },
+            { name: "Via Sävedalen / Tillfällavägen", time: tSavedalen, dist: dSavedalen, css: "savedalen", geom: dataSavedalen.routes[0].geometry },
+            { name: "Via Utbyvägen", time: tUtby, dist: dUtby, css: "utby", geom: dataUtby.routes[0].geometry }
+          ];
+
+          routes.sort((a, b) => a.time - b.time);
+          const fastest = routes[0];
+          currentFastestGeometry = fastest.geom;
+
+          bestNameEl.textContent = fastest.name;
+          bestTimeEl.textContent = `${fastest.time} min`;
+
+          if (mapInitialized) {
+            drawFastestRoute();
+          }
+
+          summaryEl.innerHTML = routes.map(r => `
+            <div class="route-row ${r.css}">
+              <div>
+                <div class="route-name">${r.name}</div>
+                <div style="font-size:0.75rem; color:#aaa;">${r.dist} km</div>
+              </div>
+              <div class="route-time">${r.time} min</div>
+            </div>
+          `).join('');
+        }
+      } catch (err) {
+        console.error("Kunde inte hämta rutter:", err);
+        bestNameEl.textContent = "Kunde inte hämta";
+        bestTimeEl.textContent = "-- min";
+      }
+    }
+
+    async function loadTrafficAndCameras() {
+      const warningsEl = document.getElementById('warnings-container');
+      const camerasEl = document.getElementById('cameras-container');
+
+      if (!TRAFIKVERKET_API_KEY) {
+        warningsEl.innerHTML = "";
+        camerasEl.innerHTML = "<p style='color:#f87171; font-size:0.85rem;'>API-nyckel saknas för kameror.</p>";
+        return;
+      }
+
+      const trafficQuery = `
+        <REQUEST>
+          <LOGIN authenticationkey="${TRAFIKVERKET_API_KEY.trim()}" />
+          <QUERY objecttype="Situation" schemaversion="1">
+            <FILTER>
+              <WITHIN name="Geometry.WGS84" shape="box" value="11.98 57.71, 12.15 57.76" />
+            </FILTER>
+          </QUERY>
+        </REQUEST>
+      `;
+
+      const cameraQuery = `
+        <REQUEST>
+          <LOGIN authenticationkey="${TRAFIKVERKET_API_KEY.trim()}" />
+          <QUERY objecttype="Camera" schemaversion="1">
+            <FILTER>
+              <WITHIN name="Geometry.WGS84" shape="box" value="11.95 57.70, 12.30 57.80" />
+            </FILTER>
+          </QUERY>
+        </REQUEST>
+      `;
+
+      try {
+        const [res1, res2] = await Promise.all([
+          fetch("https://api.trafikinfo.trafikverket.se/v2/data.json", {
+            method: "POST",
+            headers: { "Content-Type": "text/xml" },
+            body: trafficQuery
+          }),
+          fetch("https://api.trafikinfo.trafikverket.se/v2/data.json", {
+            method: "POST",
+            headers: { "Content-Type": "text/xml" },
+            body: cameraQuery
+          })
+        ]);
+
+        const result1 = await res1.json();
+        const result2 = await res2.json();
+
+        const situations = result1.RESPONSE.RESULT[0]?.Situation || [];
+        const allCameras = result2.RESPONSE.RESULT[0]?.Camera || [];
+
+        let warningsHtml = "";
+
+        situations.forEach(sit => {
+          const msgs = sit.Deviation || [];
+          msgs.forEach(dev => {
+            const header = dev.Header || "Trafikmeddelande";
+            const desc = dev.Message || "";
+            warningsHtml += `<div class="warning-card"><strong>⚠️ ${header}</strong><br>${desc}</div>`;
+          });
+        });
+        warningsEl.innerHTML = warningsHtml;
+
+        const targetCameras = allCameras.filter(cam => {
+          const name = (cam.Name || "").toLowerCase();
+          return name.includes("partille") || name.includes("torpamotet");
+        });
+
+        if (targetCameras.length > 0) {
+          camerasEl.innerHTML = targetCameras.map(cam => `
+            <div class="camera-card">
+              <div class="camera-title">📷 ${cam.Name}</div>
+              <img class="camera-img" src="${cam.PhotoUrl}" alt="${cam.Name}" loading="lazy" />
+            </div>
+          `).join('');
+        } else {
+          camerasEl.innerHTML = "<p style='color:#777; font-size:0.85rem;'>Hittade inga kameror matchande Partille eller Torpamotet.</p>";
+        }
+
+      } catch (err) {
+        console.error("Kunde inte hämta trafik eller kameror:", err);
+        camerasEl.innerHTML = "<p style='color:#f87171; font-size:0.85rem;'>Kunde inte hämta kameror.</p>";
+      }
+    }
+
+    function updateAllData() {
+      updateWeather();
+      updateRoutes();
+      loadTrafficAndCameras();
+    }
+
+    updateAllData();
+  </script>
+</body>
+</html>
